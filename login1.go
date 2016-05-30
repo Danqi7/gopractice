@@ -6,6 +6,10 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
+	"io"
+	"strconv"
+	"crypto/md5"
 )
 
 func helloName(w http.ResponseWriter, r *http.Request) {
@@ -23,6 +27,11 @@ func helloName(w http.ResponseWriter, r *http.Request) {
 func login(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("method: ", r.Method)
 	if r.Method == "GET" {
+		crutime := time.Now().Unix()
+		h := md5.New()
+		io.WriteString(h, strconv.FormatInt(crutime, 10))
+		token := fmt.Sprintf("%x", h.Sum(nil))
+		
 		r.ParseForm()
 		fmt.Println(r.Form)
 		fmt.Println("path", r.URL.Path)
@@ -32,10 +41,12 @@ func login(w http.ResponseWriter, r *http.Request) {
 		}
 	
 		t, _ := template.ParseFiles("login.html")
-		t.Execute(w, nil)
+		t.Execute(w, token)
 
 	} else {
 		r.ParseForm()
+		token := r.Form.Get("token")
+		fmt.Println("token: ", token)
 		fmt.Println("username: ", template.HTMLEscapeString(r.Form.Get("username")))
 		fmt.Println("password: ", template.HTMLEscapeString(r.Form.Get("password")))
 		template.HTMLEscape(w, []byte(r.Form.Get("username")))
