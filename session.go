@@ -19,7 +19,16 @@ func main() {
 	//initialize session manager
 	func init() {
 		globalSessions = newManager("memory", "gosessionid", 3600)
+		go globalSession.GC()
 	}
+}
+
+func (manager *Manager) GC() {
+	manager.lock.Lock()
+	defer manager.lock.Unlock()
+	manager.provider.SessionGC(manager.maxlifetime)
+	time.AfterFunc(time.Duration(manager.maxlifetime), func() { manager.GC()})
+
 }
 
 type Provider interface {
@@ -78,4 +87,55 @@ func (manager *Manager) SessionStart(w http.ResponseWriter, r *http.Request) (se
 	return
 }
 
+//login example using session operation
+func login(w http.ResponseWriter, r *http.Request) {
+	sess := globalSession.SessionStart(w, r)
+	r.ParseForm()
+	if r.Method == "GET" {
+		t, _ := template.ParseFiles("login.html")
+		w.Header().Set("Content-Type", "text/html")
+		t.Execute(w, sess.Get("username"))
+	} else {
+		sess.Set("username", r.Form["username"])
+		http.Redirect(w, r, "/", 302)
+	}
+}
+
+// example implementing cnt	
+func count(w http.ResponseWriter, r *http.Request) {
+	sess := globalSession.SessionStart(w, r)
+	createtime := sess.Get("createtime")	
+	if createtime == nil {
+		sess.Set("createtime", time.Now().Unix())
+	} else if (createtime.(int64) + 360) < (time.Now().Unix()){
+		globalSession.SessionDestroy(w, r)
+		sess = globalSession.SessionStart(w, r)
+	}
+	ct := sess.Get("countnum")
+	if ct == nil {
+		sess.Set("countnum", 1)
+	} else {
+		sess.Set("countnum", (ct.(int) + 1))
+	}
+	t, _ := template.ParseFiles("count.html")
+	w.Header().Set("Content-Type", "text/html")
+	t.Execute(w, sess.Get("countnum"))
+
+}
+
+//reset sessions
+func (manager *Manager) SessionDestroy(w http.ResponserWriter, r *http.Request) {
+	cookie, err := r.Cookie(manager.cookieName)
+	if err != nil || cookie.Value == "" {
+		return
+	} else {
+		manager.lock.Lock()
+		defer manager.lock.Unlock()
+		manager.provider.SessionDestroy(cookie.Value)
+		expiration := time.Now()
+		cookie := http.Cookie{Name: manager.cookieName, Path: "/", HttpOnly: true, Expires: expiration, MaxAge: -1}
+		http.SetCookie(w, &cookie)
+	}
+
+}
 
