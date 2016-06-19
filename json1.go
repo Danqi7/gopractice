@@ -20,4 +20,5 @@ func main() {
 	str := `{"servers":[{"serverName":"Google_Cloud", "serverIP":"127.0.0.1"},{"serverName":"Amazon_Cloud", "serverIP":"127.0.0.1"}]}`
 	json.Unmarshal([]byte(str), &s)
 	fmt.Println(s)
+	fmt.Println(s.Servers[0].ServerName)
 }
